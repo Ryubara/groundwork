@@ -92,6 +92,11 @@ def test_closing_line_form(conv):
     assert any("closing" in p for p in gw.body_problems(conv, GOOD_BODY.replace("Fixes #3", "Fixes: 3")))
 
 
+def test_a_sentence_starting_with_the_keyword_is_prose(conv):
+    assert gw.body_problems(conv, GOOD_BODY.replace("Adds the thing.", "Fixes the two broken tools.")) == []
+    assert any("closing" in p for p in gw.body_problems(conv, GOOD_BODY.replace("Fixes #3", "Fixes 3")))
+
+
 def test_ai_use_needs_a_model_unless_a_person_wrote_it(conv):
     assert any("Model" in p for p in gw.body_problems(conv, GOOD_BODY.replace("Claude Sonnet 5.5", "n/a")))
     person = GOOD_BODY.replace("an AI", "a person").replace("Claude Sonnet 5.5", "n/a")
