@@ -6,8 +6,8 @@ hygiene and a scheduled sweep, merge settings and the repository's markdown file
 `conventions.yml`. It interviews you first, works on a new repository or an existing one, and asks before it
 changes anything outside the files.
 
-> **Status: 0.1.0, a first pass.** The skill and the portable files exist; the checker and the workflow
-> templates are being built. See [DESIGN.md](DESIGN.md).
+> **Status: 0.2.0.** The skill, the portable checker and the workflow templates exist and are tested on a scratch
+> repository. See [DESIGN.md](DESIGN.md) for what is built and what is planned.
 
 ## Install
 
