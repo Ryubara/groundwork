@@ -1,7 +1,7 @@
 # Groundwork
 
-A Claude Code skill that sets up a GitHub repository the way [Coney](https://github.com/Ryubara/coney) is run:
-branch protection and rulesets, labels, issue and pull request templates, CI, an optional documentation site,
+A Claude Code skill that sets up a GitHub repository the way [Coney](https://github.com/Ryubara/coney) is run
+with branch protection and rulesets, labels, issue and pull request templates, CI, an optional documentation site,
 hygiene and a scheduled sweep, merge settings and the repository's markdown files, all driven from one
 `conventions.yml`. It interviews you first, works on a new repository or an existing one, and asks before it
 changes anything outside the files.
