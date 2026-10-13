@@ -147,3 +147,22 @@ def test_main_exit_codes(tmp_path, capsys, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert gw.main(["--conventions", "missing.yml", "validate"]) == 2
     assert gw.main(["--conventions", str(PACK / "conventions.yml"), "validate"]) == 0
+
+
+def test_workflows_only_call_commands_and_flags_that_exist():
+    """A workflow that names a subcommand or flag the checker lacks fails only on GitHub; catch it here."""
+    import re
+
+    parser = gw.build_parser()
+    commands = {a for a in parser._subparsers._group_actions[0].choices}
+    for workflow in (PACK / "workflows").glob("*.yml"):
+        text = workflow.read_text(encoding="utf-8").replace("\\n", " ")
+        for call in re.findall(r"groundwork\.py ([^\n]*)", text):
+            words = call.split()
+            command = next(w for w in words if not w.startswith("-"))
+            assert command in commands, f"{workflow.name}: unknown command {command}"
+            sub = parser._subparsers._group_actions[0].choices[command]
+            flags = {f for action in sub._actions for f in action.option_strings}
+            for word in words:
+                if word.startswith("--"):
+                    assert word in flags, f"{workflow.name}: {command} has no flag {word}"

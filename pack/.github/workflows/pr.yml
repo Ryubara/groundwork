@@ -56,5 +56,5 @@ jobs:
         run: |
           printf '%s\n' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
           git diff --name-only HEAD^1...HEAD^2 > "$RUNNER_TEMP/changed.txt"
-          uv run --with pyyaml python .github/scripts/groundwork.py check-body \
+          uv run --with pyyaml python .github/scripts/groundwork.py check-docs \
             --body "$RUNNER_TEMP/pr-body.md" --changed "$RUNNER_TEMP/changed.txt"

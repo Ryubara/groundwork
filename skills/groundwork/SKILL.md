@@ -44,10 +44,10 @@ Ask which one, unless the user said:
    the path you were loaded from): `.github/conventions.yml`, `.github/scripts/groundwork.py`, the workflows
    (`pr.yml`, `issue-status.yml`, `hygiene.yml`, `conventions.yml`), `SECURITY.md`, `CONTRIBUTING.md`,
    `.gitattributes`, `.editorconfig`, `.github/ISSUE_TEMPLATE/config.yml`. Add the language's CI from
-   `pack/optional/` as `.github/workflows/ci.yml` (its last job must be `build-ok`). Edit `conventions.yml` from the
+   `pack/optional/` (`ci-python`, `ci-node`, or `ci-none` when there is nothing to build yet) as `.github/workflows/ci.yml` (its last job must be `build-ok`). Edit `conventions.yml` from the
    interview (areas, labels, forms, required checks, paths, the sweep's cron in both the file and `hygiene.yml`),
-   fill each `{{placeholder}}`, and write `CODE_OF_CONDUCT.md` from the Contributor Covenant (fetch the current text;
-   it is not in the pack). Then render what follows the conventions:
+   fill each `{{placeholder}}`, and fill `CODE_OF_CONDUCT.md` (the Contributor Covenant 2.1;
+   the pack has it, with one placeholder for the enforcement contact). Then render what follows the conventions:
    `uv run --with pyyaml python .github/scripts/groundwork.py render`.
 4. **Apply settings** after confirmation, each showing what it would change first (no `--apply`) and then with it:
    `groundwork.py labels --apply`, `groundwork.py settings --apply`, `groundwork.py ruleset --apply`. The ruleset
