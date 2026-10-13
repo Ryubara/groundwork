@@ -23,3 +23,16 @@ jobs:
           uv run --no-project --with pyyaml python .github/scripts/groundwork.py validate
           uv run --no-project --with pyyaml python .github/scripts/groundwork.py render
           uv run --no-project --with pyyaml python .github/scripts/groundwork.py render --check
+
+  # The one required check the branch ruleset names (conventions.yml, merge.required_checks), so the jobs above can
+  # change freely.
+  build-ok:
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Every job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          case " $RESULTS " in *" failure "* | *" cancelled "*) exit 1 ;; esac
