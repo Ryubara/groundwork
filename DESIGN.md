@@ -21,14 +21,20 @@ and keep it that way afterwards. Works on a new repository and on an existing on
 | Markdown files | `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, README | templates in `pack/` |
 | Maintainer decisions | `owner_decisions` list in `conventions.yml` | asked in the interview |
 
-## Built so far (0.1.0)
+## Built so far (0.2.0)
 
-The skill (`skills/groundwork/SKILL.md`: modes, rules, steps) and the static, portable files in `pack/`.
+- The skill (`skills/groundwork/SKILL.md`: modes, rules, steps).
+- The portable checker, `pack/.github/scripts/groundwork.py` (standard library plus PyYAML): `validate`,
+  `check-title`, `check-body`, `check-docs`, `render` (and `--check`), `labels`, `settings`, `ruleset`, `hygiene`
+  and `check` (drift). Tested in `tests/` and in CI.
+- The pack: `conventions.yml`, the workflows (`pr`, `issue-status`, `hygiene`, `conventions`), optional CI for
+  Python and Node, `CONTRIBUTING.md`, `SECURITY.md`, `.gitattributes`, `.editorconfig`.
+- The pull request template and the issue forms are generated from `conventions.yml`, never hand-edited.
 
 ## Planned
 
-1. A portable checker (title, body, labels, hygiene) so a generated repository needs nothing from Coney.
-2. The workflow templates, parameterised by language and by the interview.
-3. `adopt` mode's audit and plan output; `check` mode's drift report.
-4. Extracting the generic parts of `conventions.yml` and `docs/guides/repo-conventions.md` into the pack.
-5. Dogfooding: adopt Tether and Coney with it.
+1. `adopt` mode's audit and plan output as a command (today the skill compares by hand and `check` reports drift).
+2. Optional MkDocs files and a docs workflow; more language CI templates.
+3. Per-item hygiene comments (the weekly report is built; Coney also comments on each item on events).
+4. Coney's deeper checks (stacked pull requests, checklists by date, review gates) stay in Coney until a second
+   project wants them.

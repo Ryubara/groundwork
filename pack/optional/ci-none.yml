@@ -1,0 +1,20 @@
+# Optional: for a repository with nothing to build yet (docs, configuration). Copy to .github/workflows/ci.yml. The
+# job is named `build-ok` so the ruleset's required check exists from the start; replace its step with the real build
+# and tests when there is code.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-ok:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Nothing to build yet
+        run: echo "no build"

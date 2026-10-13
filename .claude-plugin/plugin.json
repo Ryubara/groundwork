@@ -1,10 +1,20 @@
 {
   "name": "groundwork",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Set up a GitHub repository the way Coney is run: rulesets, labels, templates, CI, docs, hygiene and the conventions behind them, by interviewing you first",
-  "author": { "name": "Ryubara", "url": "https://github.com/Ryubara" },
+  "author": {
+    "name": "Ryubara",
+    "url": "https://github.com/Ryubara"
+  },
   "homepage": "https://github.com/Ryubara/groundwork",
   "repository": "https://github.com/Ryubara/groundwork",
   "license": "MIT",
-  "keywords": ["github", "repository", "setup", "conventions", "ci", "rulesets"]
+  "keywords": [
+    "github",
+    "repository",
+    "setup",
+    "conventions",
+    "ci",
+    "rulesets"
+  ]
 }
