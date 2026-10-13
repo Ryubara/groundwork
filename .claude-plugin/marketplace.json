@@ -1,0 +1,12 @@
+{
+  "name": "groundwork",
+  "owner": { "name": "Ryubara", "url": "https://github.com/Ryubara" },
+  "description": "Groundwork: set up a GitHub repository properly from the start",
+  "plugins": [
+    {
+      "name": "groundwork",
+      "source": "./",
+      "description": "Interview you, then set up rulesets, labels, templates, CI, docs and hygiene for a new or an existing GitHub repository"
+    }
+  ]
+}
