@@ -45,6 +45,8 @@ and keep it that way afterwards. Works on a new repository and on an existing on
 - `ci-failure.yml`: a red default branch opens or updates one P-critical issue.
 - pre-commit (file hygiene, large files, markdownlint, title, trailers, render) and markdownlint settings.
 - Optional docs site: `docs.yml` (strict MkDocs build, markdownlint, actionlint, Pages deploy) and `mkdocs.yml`.
+- Screenshots rule (0.4.0): a pull request whose title area is visual (`pull_requests.screenshots.areas`) carries an
+  uploaded capture in its Screenshots section, or `Screenshots: none (reason)`; `check-body --title`.
 
 Left in Coney, as specific to running many agents on reverse engineering: roles and identity tokens, claims and
 slots, the stamped task check and review pipeline, opening pull requests only through a tool, the audit registry,

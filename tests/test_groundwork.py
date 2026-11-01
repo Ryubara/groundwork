@@ -34,6 +34,10 @@ Fixes #3
 
 - 12 passed
 
+## Screenshots
+
+Screenshots: none (no visual change)
+
 ## AI use
 
 - **Commits written by:** an AI
