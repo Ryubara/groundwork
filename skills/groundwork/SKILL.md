@@ -42,13 +42,19 @@ Ask which one, unless the user said:
    decide what (the "maintainer decisions" list).
 3. **Generate.** Copy `pack/` into the repository (the skill's directory holds it; use `${CLAUDE_PLUGIN_ROOT}/pack` or
    the path you were loaded from): `.github/conventions.yml`, `.github/scripts/groundwork.py`, the workflows
-   (`pr.yml`, `issue-status.yml`, `hygiene.yml`, `conventions.yml`), `SECURITY.md`, `CONTRIBUTING.md`,
-   `.gitattributes`, `.editorconfig`, `.github/ISSUE_TEMPLATE/config.yml`. Add the language's CI from
-   `pack/optional/` (`ci-python`, `ci-node`, or `ci-none` when there is nothing to build yet) as `.github/workflows/ci.yml` (its last job must be `build-ok`). Edit `conventions.yml` from the
-   interview (areas, labels, forms, required checks, paths, the sweep's cron in both the file and `hygiene.yml`),
-   fill each `{{placeholder}}`, and fill `CODE_OF_CONDUCT.md` (the Contributor Covenant 2.1;
-   the pack has it, with one placeholder for the enforcement contact). Then render what follows the conventions:
-   `uv run --with pyyaml python .github/scripts/groundwork.py render`.
+   (`pr.yml`, `issue-status.yml`, `hygiene.yml`, `conventions.yml`, `ci-failure.yml`), `SECURITY.md`,
+   `CONTRIBUTING.md`, `AGENTS.md` and `CLAUDE.md` (a pointer to it), `.pre-commit-config.yaml`,
+   `.markdownlint.yaml`, `.markdownlint-cli2.yaml`, `.gitattributes`, `.editorconfig`,
+   `.github/ISSUE_TEMPLATE/config.yml`. Add the language's CI from `pack/optional/` (`ci-python`, `ci-node`, or
+   `ci-none` when there is nothing to build yet) as `.github/workflows/ci.yml` (its last job must be `build-ok`), and
+   for a documentation site `docs.yml` (as `.github/workflows/docs.yml`), `mkdocs.yml` and `requirements-docs.txt`.
+   Edit `conventions.yml` from the interview (areas, labels, forms, required checks, paths, manual paths, the
+   trailers' noreply addresses, the sweep's cron in both the file and `hygiene.yml`; `ci-failure.yml` lists the
+   workflows it watches), fill each `{{placeholder}}`, and fill `CODE_OF_CONDUCT.md` (the Contributor Covenant 2.1;
+   the pack has it, with one placeholder for the enforcement contact). Then render what follows the conventions,
+   including the generated blocks of `AGENTS.md` and `CONTRIBUTING.md`:
+   `uv run --with pyyaml python .github/scripts/groundwork.py render`, and install the commit hooks:
+   `uvx pre-commit install`.
 4. **Apply settings** after confirmation, each showing what it would change first (no `--apply`) and then with it:
    `groundwork.py labels --apply`, `groundwork.py settings --apply`, `groundwork.py ruleset --apply`. The ruleset
    names the required checks, which must exist as workflow jobs (`title`, `body`, `docs`, `build-ok`); apply it
@@ -60,9 +66,15 @@ Ask which one, unless the user said:
 
 ## Keeping a repository this way
 
-The checker is the enforcement: `check-title`, `check-body` and `check-docs` run on every pull request, `render
---check` fails a pull request that edits a generated file by hand, `issue-status` keeps labels honest, and the weekly
-`hygiene` sweep reports idle or malformed issues and pull requests on one issue. To change a rule, edit
-`conventions.yml`, run `render`, apply what changed, and commit them together.
+The checker is the enforcement: `check-title`, `check-body`, `check-docs` and `check-commits` (trailers, e-mail
+addresses, the model line) run on every pull request, on `pull_request_target` so a fork's pull request is checked
+the first time (`pr.yml` explains the four rules that make that safe); `render --check` fails a pull request that
+edits a generated file or block by hand, and `check-files` one that grows a pointer file; pre-commit runs the title,
+trailer and render checks before a commit exists; `ci-failure` opens a P-critical issue when the default branch goes
+red; `issue-status` keeps labels honest, and the weekly `hygiene` sweep reports idle or malformed issues and pull
+requests on one issue. `needs-maintainer` tells a tool or an agent hook that a pull request touches a manual path,
+so it must not turn on auto-merge: GitHub cannot tell an agent from the person whose token it uses, so that rule is
+enforced on the agent's side. To change a rule, edit `conventions.yml`, run `render`, apply what changed, and commit
+them together.
 
 See `DESIGN.md` for what is built and what is planned.

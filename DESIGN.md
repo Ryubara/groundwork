@@ -21,7 +21,7 @@ and keep it that way afterwards. Works on a new repository and on an existing on
 | Markdown files | `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, README | templates in `pack/` |
 | Maintainer decisions | `owner_decisions` list in `conventions.yml` | asked in the interview |
 
-## Built so far (0.2.0)
+## Built in 0.2.0
 
 - The skill (`skills/groundwork/SKILL.md`: modes, rules, steps).
 - The portable checker, `pack/.github/scripts/groundwork.py` (standard library plus PyYAML): `validate`,
@@ -31,10 +31,29 @@ and keep it that way afterwards. Works on a new repository and on an existing on
   Python and Node, `CONTRIBUTING.md`, `SECURITY.md`, `.gitattributes`, `.editorconfig`.
 - The pull request template and the issue forms are generated from `conventions.yml`, never hand-edited.
 
+## Added in 0.3.0 (Coney's later conventions that any repository can use)
+
+- `check-commits` / `check-message`: the only trailer is an AI `Co-Authored-By` with a vendor noreply address, no
+  other e-mail address appears in a message, and the description's model line names every trailer's model
+  (`commits.trailers`, `pull_requests.ai_use.model.names_trailer_models`). Run on every pull request and at the
+  commit-msg stage.
+- Generated blocks in hand-written files (`paths.blocks_in`): `commit-rules`, `maintainer-decisions`,
+  `manual-paths`, rewritten by `render` and checked by `render --check`, so `AGENTS.md` never drifts from the rules.
+- Pointer files (`paths.pointer_files`): `CLAUDE.md` and `GEMINI.md` hold only `@AGENTS.md` (`check-files`).
+- Manual paths (`merge.manual_paths`) and `needs-maintainer`: the rules that judge agents are merged by a person.
+- `pr.yml` on `pull_request_target` under four safety rules; changed files and commits read from the API.
+- `ci-failure.yml`: a red default branch opens or updates one P-critical issue.
+- pre-commit (file hygiene, large files, markdownlint, title, trailers, render) and markdownlint settings.
+- Optional docs site: `docs.yml` (strict MkDocs build, markdownlint, actionlint, Pages deploy) and `mkdocs.yml`.
+
+Left in Coney, as specific to running many agents on reverse engineering: roles and identity tokens, claims and
+slots, the stamped task check and review pipeline, opening pull requests only through a tool, the audit registry,
+stacked pull requests and dated checklist rules.
+
 ## Planned
 
 1. `adopt` mode's audit and plan output as a command (today the skill compares by hand and `check` reports drift).
-2. Optional MkDocs files and a docs workflow; more language CI templates.
+2. More language CI templates.
 3. Per-item hygiene comments (the weekly report is built; Coney also comments on each item on events).
 4. Coney's deeper checks (stacked pull requests, checklists by date, review gates) stay in Coney until a second
    project wants them.

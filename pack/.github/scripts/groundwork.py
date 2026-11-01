@@ -30,12 +30,12 @@ MARKER = "groundwork-hygiene"  # the hygiene comment starts with <!-- MARKER -->
 KNOWN: dict[str, set[str]] = {
     "version": set(),
     "repo": {"default_branch", "wording", "maintainer_decisions", "tools"},
-    "paths": {"code", "docs", "generated", "large_file_kb"},
+    "paths": {"code", "docs", "generated", "large_file_kb", "pointer_files", "blocks_in"},
     "commits": {"title", "body", "trailers"},
     "pull_requests": {"template", "sections", "filled", "placeholders", "local_paths", "docs_none", "closing",
                       "checklist", "ai_use", "guidance"},
     "merge": {"methods", "squash_title", "squash_message", "auto_merge", "delete_branch_on_merge",
-              "linear_history", "required_checks", "ruleset_name"},
+              "linear_history", "required_checks", "ruleset_name", "up_to_date_required", "manual_paths"},
     "issues": {"blank_issues", "placeholders", "forms", "labels"},
     "labels": {"description_max", "families", "list"},
     "hygiene": {"report_issue", "sweep", "thresholds"},
@@ -91,6 +91,13 @@ def validate(data: dict[str, Any]) -> list[str]:
     for check in data.get("merge", {}).get("required_checks", []):
         if not isinstance(check, str):
             problems.append("merge.required_checks must be a list of names")
+    trailers = data.get("commits", {}).get("trailers")
+    if trailers is not None and not (isinstance(trailers, dict) and isinstance(trailers.get("ai_co_author"), dict)
+                                     and trailers["ai_co_author"].get("noreply")):
+        problems.append("commits.trailers needs ai_co_author with a noreply list")
+    pointer = data.get("paths", {}).get("pointer_files")
+    if pointer is not None and not (isinstance(pointer, dict) and pointer.get("files") and pointer.get("content")):
+        problems.append("paths.pointer_files needs files and content")
     return problems
 
 
@@ -201,6 +208,134 @@ def body_problems(conv: dict[str, Any], body: str) -> list[str]:
     return problems
 
 
+def ai_model_line(conv: dict[str, Any], body: str) -> str:
+    """The description's model line (pull_requests.ai_use.model), '' when there is none."""
+    ai = conv["pull_requests"].get("ai_use")
+    if not ai:
+        return ""
+    sections = split_sections(body)
+    return _field(_COMMENT.sub("", sections.get(ai["section"], "")), ai["model"]["label"])
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# Commit messages: trailers and e-mail addresses (commits.trailers)
+# --------------------------------------------------------------------------------------------------------------------
+
+_TRAILER = re.compile(r"^([A-Za-z][A-Za-z0-9-]*):[ \t]+(.+)$")
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_PERSON = re.compile(r"^(.+?)\s*<([^<>\s]+)>$")
+
+
+def split_trailers(message: str) -> list[tuple[str, str]]:
+    """The trailers of a commit message: the last paragraph, when every line of it is `Key: value`."""
+    paragraphs = [p for p in re.split(r"\n\s*\n", message.strip()) if p.strip()]
+    if len(paragraphs) < 2:
+        return []
+    lines = paragraphs[-1].strip().splitlines()
+    matches = [_TRAILER.match(ln.strip()) for ln in lines]
+    return [(m.group(1), m.group(2).strip()) for m in matches if m] if all(matches) else []
+
+
+def trailer_models(conv: dict[str, Any], message: str) -> list[str]:
+    """The model names an AI co-author trailer of `message` gives."""
+    rule = conv["commits"].get("trailers")
+    if not rule:
+        return []
+    key = rule["ai_co_author"].get("key", "Co-Authored-By").lower()
+    names = []
+    for k, v in split_trailers(message):
+        person = _PERSON.match(v)
+        if k.lower() == key and person:
+            names.append(person.group(1).strip())
+    return names
+
+
+def commit_problems(conv: dict[str, Any], message: str) -> list[str]:
+    """Check one commit message against commits.trailers; return what is wrong."""
+    rule = conv["commits"].get("trailers")
+    if not rule:
+        return []
+    ai = rule["ai_co_author"]
+    key = ai.get("key", "Co-Authored-By")
+    noreply = {a.lower() for a in ai["noreply"]}
+    problems: list[str] = []
+    allowed_emails: set[str] = set()
+    for k, v in split_trailers(message):
+        if k.lower() == key.lower():
+            person = _PERSON.match(v)
+            if not person or person.group(2).lower() not in noreply:
+                problems.append(f"'{k}: {v}' must read '{key}: {ai.get('value', '<model name> <noreply address>')}' "
+                                f"with one of: {', '.join(sorted(noreply))}")
+            else:
+                allowed_emails.add(person.group(2).lower())
+        elif rule.get("only_ai_co_author", False):
+            problems.append(f"trailer '{k}' is not allowed; the only trailer is '{key}'")
+    if rule.get("other_emails", True) is False:
+        for email in _EMAIL.findall(message):
+            if email.lower() not in allowed_emails:
+                problems.append(f"an e-mail address ({email}) appears in the message; none may, apart from the "
+                                f"{key} trailer's noreply address")
+    return problems
+
+
+def commits_problems(conv: dict[str, Any], commits: list[tuple[str, str]], body: str | None) -> list[str]:
+    """Check every (sha, message) of a pull request, and that its model line names each trailer's model."""
+    problems = [f"{sha[:10]}: {p}" for sha, msg in commits for p in commit_problems(conv, msg)]
+    ai = conv["pull_requests"].get("ai_use") or {}
+    if body is not None and ai.get("model", {}).get("names_trailer_models"):
+        line = ai_model_line(conv, body).lower()
+        for name in sorted({n for _, msg in commits for n in trailer_models(conv, msg)}):
+            if name.lower() not in line:
+                problems.append(f"a commit names the model {name!r} in its trailer, but the description's "
+                                f"'{ai['model']['label']}' line does not")
+    return problems
+
+
+def read_commits(source: str) -> list[tuple[str, str]]:
+    """(sha, message) pairs from GitHub's pull request commits JSON (a file, or - for stdin), or from `git log` when
+    `source` is `git:<range>`."""
+    if source.startswith("git:"):
+        out = subprocess.run(["git", "log", "--format=%H%x00%B%x1e", source[4:]], capture_output=True, text=True,
+                             encoding="utf-8", check=True).stdout
+        pairs = [chunk.strip("\n").split("\x00", 1) for chunk in out.split("\x1e") if chunk.strip()]
+        return [(sha, msg) for sha, msg in pairs]
+    data = json.loads(_read(source) or "[]")
+    if data and isinstance(data[0], list):  # gh api --paginate --slurp gives one list per page
+        data = [item for page in data for item in page]
+    return [(item["sha"], item["commit"]["message"]) for item in data]
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# Files that must hold only a pointer, and changes a maintainer merges by hand
+# --------------------------------------------------------------------------------------------------------------------
+
+
+def pointer_problems(conv: dict[str, Any], root: Path = Path(".")) -> list[str]:
+    """Each pointer file (paths.pointer_files) holds only its pointer, such as CLAUDE.md holding `@AGENTS.md`."""
+    rule = conv.get("paths", {}).get("pointer_files")
+    if not rule:
+        return []
+    problems = []
+    for name in rule["files"]:
+        path = root / name
+        if not path.exists():
+            continue
+        raw = path.read_bytes()
+        lines = [ln.strip() for ln in raw.decode("utf-8", "replace").splitlines()]
+        lines = [ln for ln in lines if ln and not ln.startswith("#")]
+        if lines != [rule["content"]]:
+            problems.append(f"{name} must hold only '{rule['content']}' (a heading line is allowed); put the rest in "
+                            f"the file it points to")
+        if len(raw) > rule.get("max_bytes", 400):
+            problems.append(f"{name} is {len(raw)} bytes; at most {rule.get('max_bytes', 400)}")
+    return problems
+
+
+def manual_matches(conv: dict[str, Any], changed: list[str]) -> list[str]:
+    """The changed paths under merge.manual_paths: a pull request touching one is merged by a maintainer by hand."""
+    return [p for p in changed if _under(p, conv.get("merge", {}).get("manual_paths", []))]
+
+
 def _field(text: str, label: str) -> str:
     """The value after a `**Label**` (or `Label`) in a section, '' when absent."""
     bare = label.rstrip(":")
@@ -294,6 +429,62 @@ def rendered_files(conv: dict[str, Any]) -> dict[str, str]:
     for name, form in conv["issues"].get("forms", {}).items():
         files[form.get("file", f".github/ISSUE_TEMPLATE/{name}.yml")] = render_form(conv, name)
     return files
+
+
+# Generated blocks inside hand-written files (paths.blocks_in), such as AGENTS.md:
+#   <!-- conventions:begin commit-rules -->
+#   ...written by `render`...
+#   <!-- conventions:end -->
+_BLOCK = re.compile(r"(<!-- conventions:begin ([a-z-]+) -->\n)(.*?)(<!-- conventions:end -->)", re.DOTALL)
+
+
+def _wrap(text: str, width: int = 116, indent: str = "  ") -> list[str]:
+    """Wrap a bullet's text to `width`, continuation lines indented."""
+    words, lines, line = text.split(), [], ""
+    for word in words:
+        if line and len(line) + 1 + len(word) > width:
+            lines.append(line)
+            line = indent + word
+        else:
+            line = f"{line} {word}" if line else word
+    return lines + [line] if line else lines
+
+
+def render_block(conv: dict[str, Any], name: str) -> str:
+    """The text of one generated block, by name; ConventionsError for a name render does not know."""
+    title = conv["commits"]["title"]
+    bullets: list[str] = []
+    if name == "commit-rules":
+        bullets.append(
+            f"Title `{title.get('form', 'area: Verb the rest')}`, at most {title.get('max_length', 72)} characters, "
+            f"present tense{'' if title.get('trailing_period') else ', no trailing period'}. "
+            f"Verbs: {', '.join(title['verbs'])}. Areas: {', '.join(f'`{a}`' for a in title['areas'])}."
+            + (f" A breaking change ends the title with `{title['breaking_suffix']}`." if title.get("breaking_suffix") else ""))
+        trailers = conv["commits"].get("trailers")
+        if trailers:
+            ai = trailers["ai_co_author"]
+            text = (f"An agent ends the message with `{ai.get('key', 'Co-Authored-By')}: "
+                    f"{ai.get('value', '<model name> <noreply address>')}` (one of: "
+                    f"{', '.join(f'`{a}`' for a in ai['noreply'])})")
+            text += " and no other trailer" if trailers.get("only_ai_co_author") else ""
+            text += ". No other e-mail address appears in a message." if trailers.get("other_emails") is False else "."
+            bullets.append(text)
+    elif name == "maintainer-decisions":
+        decisions = conv["repo"].get("maintainer_decisions", [])
+        bullets.append("**Maintainer decisions** are never an agent's: it stops and reports instead of acting. They are: "
+                       + "; ".join(decisions) + ".")
+    elif name == "manual-paths":
+        paths = conv.get("merge", {}).get("manual_paths", [])
+        bullets.append("A pull request that changes any of these is merged by a maintainer by hand, never by auto-merge: "
+                       + ", ".join(f"`{p}`" for p in paths) + ".")
+    else:
+        raise ConventionsError(f"unknown generated block {name!r}; known: commit-rules, maintainer-decisions, manual-paths")
+    return "".join("\n".join(["- " + _wrap(b)[0], *_wrap(b)[1:]]) + "\n" for b in bullets)
+
+
+def render_blocks_in(conv: dict[str, Any], text: str) -> str:
+    """`text` with every generated block rewritten from the conventions."""
+    return _BLOCK.sub(lambda m: m.group(1) + render_block(conv, m.group(2)) + m.group(4), text)
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -501,9 +692,41 @@ def cmd_validate(conv: dict[str, Any], args: argparse.Namespace) -> int:
     return _report([], "conventions")  # load() already refused a bad file
 
 
+#: Commit titles git or a tool writes, which the squash replaces anyway (a commit-msg hook lets them pass).
+_TOOL_TITLES = re.compile(r"^(?:fixup!|squash!|amend!|Merge |Revert \")")
+
+
 def cmd_check_title(conv: dict[str, Any], args: argparse.Namespace) -> int:
     lines = _read(args.title).splitlines()
+    if args.commit_msg:  # a commit message file: drop git's comment lines, let tool-written titles pass
+        lines = [ln for ln in lines if not ln.startswith("#") and ln.strip()]
+        if lines and _TOOL_TITLES.match(lines[0]):
+            return _report([], "title")
     return _report(title_problems(conv, lines[0] if lines else ""), "title")
+
+
+def cmd_check_commits(conv: dict[str, Any], args: argparse.Namespace) -> int:
+    body = _read(args.body) if args.body else None
+    return _report(commits_problems(conv, read_commits(args.commits), body), "commits")
+
+
+def cmd_check_message(conv: dict[str, Any], args: argparse.Namespace) -> int:
+    """One commit message (a commit-msg hook's file): its trailers and e-mail addresses."""
+    text = "\n".join(ln for ln in _read(args.message).splitlines() if not ln.startswith("#"))
+    return _report(commit_problems(conv, text), "commit message")
+
+
+def cmd_check_files(conv: dict[str, Any], args: argparse.Namespace) -> int:
+    return _report(pointer_problems(conv), "files")
+
+
+def cmd_needs_maintainer(conv: dict[str, Any], args: argparse.Namespace) -> int:
+    """Exit 1 (and list them) when a changed path is a manual path; tools refuse auto-merge then."""
+    matches = manual_matches(conv, Path(args.changed).read_text(encoding="utf-8").split())
+    for path in matches:
+        print(path)
+    print("a maintainer merges this by hand" if matches else "auto-merge allowed", file=sys.stderr)
+    return 1 if matches else 0
 
 
 def cmd_check_body(conv: dict[str, Any], args: argparse.Namespace) -> int:
@@ -517,7 +740,11 @@ def cmd_check_docs(conv: dict[str, Any], args: argparse.Namespace) -> int:
 
 def cmd_render(conv: dict[str, Any], args: argparse.Namespace) -> int:
     drift: list[str] = []
-    for path, text in rendered_files(conv).items():
+    files = rendered_files(conv)
+    for name in conv.get("paths", {}).get("blocks_in", []):
+        if Path(name).exists():
+            files[name] = render_blocks_in(conv, Path(name).read_text(encoding="utf-8"))
+    for path, text in files.items():
         target = Path(path)
         if args.check:
             if not target.exists() or target.read_text(encoding="utf-8") != text:
@@ -585,6 +812,7 @@ def cmd_hygiene(conv: dict[str, Any], args: argparse.Namespace) -> int:
 def cmd_check(conv: dict[str, Any], args: argparse.Namespace) -> int:
     """Everything at once: the files, then (unless --offline) the labels, settings and ruleset."""
     status = cmd_render(conv, argparse.Namespace(check=True))
+    status |= cmd_check_files(conv, args)
     if not args.offline:
         repo = args.repo or current_repo()
         status |= cmd_labels(conv, argparse.Namespace(repo=repo, apply=False, prune=False))
@@ -600,7 +828,22 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("validate", help="check that the conventions file is well formed").set_defaults(run=cmd_validate)
     p = sub.add_parser("check-title", help="check a title (a file, or - for stdin)")
-    p.add_argument("title"); p.set_defaults(run=cmd_check_title)
+    p.add_argument("title")
+    p.add_argument("--commit-msg", action="store_true", help="the file is a commit message (a commit-msg hook)")
+    p.set_defaults(run=cmd_check_title)
+    p = sub.add_parser("check-commits", help="check commit trailers and e-mail addresses (commits.trailers)")
+    p.add_argument("--commits", required=True,
+                   help="GitHub's pull request commits JSON (a file, or - for stdin), or git:<range> for git log")
+    p.add_argument("--body", help="the description, to check its model line names each trailer's model")
+    p.set_defaults(run=cmd_check_commits)
+    p = sub.add_parser("check-message", help="check one commit message's trailers (a file, or - for stdin)")
+    p.add_argument("message")
+    p.set_defaults(run=cmd_check_message)
+    sub.add_parser("check-files", help="pointer files hold only their pointer (paths.pointer_files)").set_defaults(
+        run=cmd_check_files)
+    p = sub.add_parser("needs-maintainer", help="exit 1 when a changed path is a manual path (merge.manual_paths)")
+    p.add_argument("--changed", required=True, help="a file listing the changed paths")
+    p.set_defaults(run=cmd_needs_maintainer)
     p = sub.add_parser("check-body", help="check a pull request description")
     p.add_argument("--body", required=True, help="a file, or - for stdin")
     p.set_defaults(run=cmd_check_body)
@@ -608,7 +851,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--body", required=True, help="the description: a file, or - for stdin")
     p.add_argument("--changed", required=True, help="a file listing the changed paths")
     p.set_defaults(run=cmd_check_docs)
-    p = sub.add_parser("render", help="write (or with --check, compare) the template and issue forms")
+    p = sub.add_parser("render", help="write (or with --check, compare) the template, issue forms and blocks")
     p.add_argument("--check", action="store_true"); p.set_defaults(run=cmd_render)
     for name, fn, helptext in (("labels", cmd_labels, "compare or sync the labels"),
                                ("settings", cmd_settings, "compare or apply the merge settings"),

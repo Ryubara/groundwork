@@ -42,7 +42,7 @@ Fixes #3
 
 
 def test_pack_conventions_load(conv):
-    assert conv["merge"]["required_checks"] == ["title", "body", "docs"]
+    assert conv["merge"]["required_checks"] == ["title", "body", "docs", "commits"]
 
 
 @pytest.mark.parametrize("title", ["core: Add a thing", "docs: Fix the typo (BREAKING)"])
@@ -142,7 +142,7 @@ def test_ruleset_and_settings_shapes(conv):
     kinds = {r["type"] for r in rs["rules"]}
     assert {"deletion", "non_fast_forward", "pull_request", "required_linear_history", "required_status_checks"} <= kinds
     norm = gw.normalise_ruleset(rs)
-    assert norm["rules"]["required_status_checks"]["contexts"] == ["body", "docs", "title"]
+    assert norm["rules"]["required_status_checks"]["contexts"] == ["body", "commits", "docs", "title"]
     assert norm["rules"]["pull_request"]["methods"] == ["squash"]
     want = gw.settings_wanted(conv)
     assert want["allow_squash_merge"] and not want["allow_merge_commit"] and not want["allow_rebase_merge"]
