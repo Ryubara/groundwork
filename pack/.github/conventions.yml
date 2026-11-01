@@ -58,7 +58,7 @@ commits:
 pull_requests:
   template: .github/pull_request_template.md
   # `##` headings of the description, in the template's order; the squash commit takes the pull request's title.
-  sections: [Summary, Checklist, Testing, AI use]
+  sections: [Summary, Checklist, Testing, Screenshots, AI use]
   filled: [Summary, Testing]                     # must hold text of their own, not just a comment or a placeholder
   placeholders: ["...", "<reason>"]              # template text that counts as empty when left unchanged
   local_paths: false                             # no scratch/, ../../ or C:\ in the text (images are the exception)
@@ -67,6 +67,10 @@ pull_requests:
   # Every task a pull request lists is finished: an unticked `- [ ]` item is refused. Work it does not finish lives in
   # its own issue.
   checklist: {section: Checklist, unchecked: refused}
+  # A pull request whose title area is in `areas` (the areas a person sees: UI, art, levels) shows what changed: an
+  # uploaded image or video in this section (`gh pr create|edit --attach`), or the `none` line with a reason in
+  # parentheses. Empty `areas`: the rule is off. The check needs the title: `check-body --title`.
+  screenshots: {section: Screenshots, none: "Screenshots: none", areas: []}
   ai_use:
     section: "AI use"
     written_by:
@@ -79,6 +83,7 @@ pull_requests:
     Summary: "One short paragraph: what this changes and why. If the change needs no documentation, add a line `Docs: none`. If this finishes an issue, add a line `Fixes #<number>` (one per issue)."
     Checklist: "List what this pull request finishes, each item ticked. Work it does not finish is not listed here: it lives in its own issue."
     Testing: "What was run and what came out: commands, tests added or changed, results as counts or pass/fail."
+    Screenshots: "Captures of what changed (attach them: gh pr create --attach). Nothing visible changed: write `Screenshots: none (reason)`."
     "AI use": "Who wrote the work in this pull request's commits, not who opened the pull request."
 
 merge:

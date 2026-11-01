@@ -60,6 +60,10 @@ Adds it.
 
 - 3 passed
 
+## Screenshots
+
+Screenshots: none (no visual change)
+
 ## AI use
 
 - **Commits written by:** an AI
@@ -117,3 +121,30 @@ def test_commit_msg_title_lets_tool_titles_pass(conv, tmp_path, capsys):
     assert gw.main(["--conventions", str(PACK / ".github" / "conventions.yml"), "check-title", "--commit-msg", str(msg)]) == 0
     msg.write_text("added stuff\n", encoding="utf-8")
     assert gw.main(["--conventions", str(PACK / ".github" / "conventions.yml"), "check-title", "--commit-msg", str(msg)]) == 1
+
+
+SHOT_BODY = "## Summary\n\nx\n\n## Screenshots\n\n{shots}\n"
+
+
+def visual(conv):
+    conv["pull_requests"]["screenshots"]["areas"] = ["ui"]
+    return conv
+
+
+def test_screenshots_rule_off_without_areas(conv):
+    assert gw.screenshot_problems(conv, "ui: Add the menu", SHOT_BODY.format(shots="")) == []
+
+
+def test_screenshots_rule_needs_an_upload_or_a_reasoned_none(conv):
+    conv = visual(conv)
+    assert gw.screenshot_problems(conv, "ui: Add the menu", SHOT_BODY.format(shots="nothing"))
+    upload = "![menu](https://github.com/user-attachments/assets/abc-123)"
+    assert gw.screenshot_problems(conv, "ui: Add the menu", SHOT_BODY.format(shots=upload)) == []
+    assert gw.screenshot_problems(conv, "ui: Add the menu", SHOT_BODY.format(shots="Screenshots: none (rules only)")) == []
+    assert gw.screenshot_problems(conv, "ui: Add the menu", SHOT_BODY.format(shots="Screenshots: none"))
+    assert gw.screenshot_problems(conv, "core: Add rules", SHOT_BODY.format(shots="")) == []
+
+
+def test_local_image_is_not_an_upload(conv):
+    conv = visual(conv)
+    assert gw.screenshot_problems(conv, "ui: Add x", SHOT_BODY.format(shots="![x](./shots/menu.png)"))
