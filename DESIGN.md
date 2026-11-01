@@ -48,6 +48,20 @@ and keep it that way afterwards. Works on a new repository and on an existing on
 - Screenshots rule (0.4.0): a pull request whose title area is visual (`pull_requests.screenshots.areas`) carries an
   uploaded capture in its Screenshots section, or `Screenshots: none (reason)`; `check-body --title`.
 
+## Added in 0.5.0 (Coney's issue and pull request structure)
+
+- Issues affected (`pull_requests.issues_affected`): a `## Issues affected` section lists every other open issue the
+  change partly fixes or makes out of date, one `#N: how` line each, or `None (reason)`; the coordinator updates
+  those issues after the merge.
+- Before and after (`pull_requests.screenshots.before_after`): a visual pull request uploads a `Before:` and an
+  `After:` capture, or writes `Before: none (reason)` for something new.
+- Failed first (`pull_requests.failed_first`): a pull request whose title verb is `Fix` has a `Failed first:` line in
+  Testing naming the test that failed before and passes after, or `Failed first: none (reason)`.
+- The task form has a required From line, an Area dropdown, a Docs page link and a "done" hint for bug fixes. The
+  area labels (`A-<area>`) are generated from the title areas (`labels.families.area.from_title_areas`), synced by
+  `labels`, and applied from the dropdown by the `issue-area` workflow (`groundwork.py issue-area`).
+- Coney's priority and status labels for agent claims and its `Runtime:` evidence line stay in Coney.
+
 Left in Coney, as specific to running many agents on reverse engineering: roles and identity tokens, claims and
 slots, the stamped task check and review pipeline, opening pull requests only through a tool, the audit registry,
 stacked pull requests and dated checklist rules.
