@@ -26,6 +26,10 @@ Adds the thing.
 
 Fixes #3
 
+## Issues affected
+
+- #5: its second step is done
+
 ## Checklist
 
 - [x] the thing
@@ -119,7 +123,7 @@ def test_render_is_stable_and_forms_are_valid_yaml(conv):
     assert ".github/ISSUE_TEMPLATE/bug.yml" in files
     form = yaml.safe_load(files[".github/ISSUE_TEMPLATE/task.yml"])
     assert form["title"] == "Task: " and form["labels"] == ["task", "S-needs-triage"]
-    assert [b["id"] for b in form["body"] if "id" in b] == ["summary", "done", "steps", "blocked-by"]
+    assert [b["id"] for b in form["body"] if "id" in b] == ["from", "summary", "area", "docs-page", "done", "steps", "blocked-by"]
     assert "blank_issues_enabled: false" in files[".github/ISSUE_TEMPLATE/config.yml"]
     assert gw.rendered_files(conv) == files
 

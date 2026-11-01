@@ -52,6 +52,10 @@ BODY = """## Summary
 
 Adds it.
 
+## Issues affected
+
+None (tooling only)
+
 ## Checklist
 
 - [x] it
@@ -137,6 +141,7 @@ def test_screenshots_rule_off_without_areas(conv):
 
 def test_screenshots_rule_needs_an_upload_or_a_reasoned_none(conv):
     conv = visual(conv)
+    del conv["pull_requests"]["screenshots"]["before_after"]
     assert gw.screenshot_problems(conv, "ui: Add the menu", SHOT_BODY.format(shots="nothing"))
     upload = "![menu](https://github.com/user-attachments/assets/abc-123)"
     assert gw.screenshot_problems(conv, "ui: Add the menu", SHOT_BODY.format(shots=upload)) == []
@@ -148,3 +153,119 @@ def test_screenshots_rule_needs_an_upload_or_a_reasoned_none(conv):
 def test_local_image_is_not_an_upload(conv):
     conv = visual(conv)
     assert gw.screenshot_problems(conv, "ui: Add x", SHOT_BODY.format(shots="![x](./shots/menu.png)"))
+
+
+# Issues affected, before and after captures, failed-first evidence and the area label (0.5.0)
+
+UP = "https://github.com/user-attachments/assets/abc-123"
+
+
+def affected(text):
+    return f"## Summary\n\nx\n\n## Issues affected\n\n{text}\n"
+
+
+@pytest.mark.parametrize(
+    ("text", "ok"),
+    [
+        ("- #12: its step 2 is done", True),
+        ("- #12: step 2 done\n- #14: the menu it describes is gone", True),
+        ("- Ryubara/other#3: its premise changed", True),
+        ("None (one-line fix)", True),
+        ("- ...", False),
+        ("", False),
+        ("None", False),
+        ("None ()", False),
+        ("- #12", False),
+        ("- the menu issue", False),
+        ("None (fine)\n- #12: also this", False),
+    ],
+)
+def test_issues_affected(conv, text, ok):
+    assert (gw.issues_affected_problems(conv, affected(text)) == []) is ok
+
+
+def test_issues_affected_missing_section_reported_once(conv):
+    problems = gw.body_problems(conv, BODY.format(model="x").replace("## Issues affected", "## Other"))
+    assert sum("Issues affected" in p for p in problems) == 1
+
+
+def shots(text):
+    return SHOT_BODY.format(shots=text)
+
+
+@pytest.mark.parametrize(
+    ("text", "ok"),
+    [
+        (f"- **Before:** ![a]({UP})\n- **After:** ![b]({UP})", True),
+        (f"Before:\n\n![a]({UP})\n\nAfter:\n\n![b]({UP})", True),
+        (f"- **Before:** none (new screen)\n- **After:** ![b]({UP})", True),
+        ("Screenshots: none (rules only)", True),
+        (f"- **Before:** none\n- **After:** ![b]({UP})", False),
+        (f"- **After:** ![b]({UP})", False),
+        (f"- **Before:** ![a]({UP})\n- **After:** ...", False),
+        (f"- **Before:** ...\n- **After:** ![b]({UP})", False),
+        (f"- **After:** ![b]({UP})\n- **Before:** ![a]({UP})", False),
+        (f"![b]({UP})", False),
+    ],
+)
+def test_before_and_after(conv, text, ok):
+    assert (gw.screenshot_problems(visual(conv), "ui: Add the menu", shots(text)) == []) is ok
+
+
+def fix_body(text):
+    return f"## Summary\n\nx\n\n## Testing\n\n- 12 passed\n{text}\n"
+
+
+@pytest.mark.parametrize(
+    ("title", "text", "ok"),
+    [
+        ("core: Fix the crash", "- Failed first: test_crash failed on main (KeyError), passes here", True),
+        ("core: Fix the crash", "- **Failed first:** test_crash red before, green after", True),
+        ("core: Fix the crash", "Failed first: none (a typo in a log message)", True),
+        ("core: Fix the crash", "", False),
+        ("core: Fix the crash", "- Failed first: ...", False),
+        ("core: Fix the crash", "- Failed first: none", False),
+        ("core: Add the thing", "", True),
+        ("not a title", "", True),
+    ],
+)
+def test_failed_first(conv, title, text, ok):
+    assert (gw.failed_first_problems(conv, title, fix_body(text)) == []) is ok
+
+
+def test_failed_first_only_counts_the_testing_section(conv):
+    body = "## Summary\n\nFailed first: test_x red then green\n\n## Testing\n\n- 3 passed\n"
+    assert gw.failed_first_problems(conv, "core: Fix x", body)
+
+
+def test_area_labels_and_form(conv):
+    names = [item["name"] for item in gw.all_labels(conv)]
+    assert "A-core" in names and "A-ci" in names and len(names) == len(set(names))
+    assert all(len(item["description"]) <= 100 for item in gw.all_labels(conv))
+    import yaml
+
+    form = yaml.safe_load(gw.rendered_files(conv)[".github/ISSUE_TEMPLATE/task.yml"])
+    area = next(b for b in form["body"] if b.get("id") == "area")
+    assert area["type"] == "dropdown" and area["attributes"]["options"] == gw.area_options(conv)
+    assert area["validations"] == {"required": True}
+    source = next(b for b in form["body"] if b.get("id") == "from")
+    assert source["type"] == "input" and source["attributes"]["placeholder"].startswith("From:")
+
+
+def test_issue_area_reads_the_form_body(conv):
+    body = "### From\n\nFrom: the coordinator\n\n### Summary\n\nx\n\n### Area\n\nA-core\n\n### Docs page\n\n_No response_\n"
+    assert gw.issue_area(conv, body) == "A-core"
+    assert gw.issue_area(conv, body.replace("A-core", "A-nope")) == ""
+    assert gw.issue_area(conv, body.replace("A-core", "A-core; rm -rf /")) == ""
+    assert gw.issue_area(conv, "no form here") == ""
+
+
+def test_check_body_runs_every_title_rule(conv, tmp_path, capsys):
+    body = tmp_path / "body.md"
+    title = tmp_path / "title.txt"
+    body.write_text(BODY.format(model="Claude Opus 5.5"), encoding="utf-8")
+    title.write_text("core: Fix the crash\n", encoding="utf-8")
+    args = ["--conventions", str(PACK / ".github" / "conventions.yml"), "check-body", "--body", str(body)]
+    assert gw.main(args) == 0
+    assert gw.main([*args, "--title", str(title)]) == 1
+    assert "Failed first" in capsys.readouterr().err
